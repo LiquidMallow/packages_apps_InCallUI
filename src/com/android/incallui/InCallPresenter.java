@@ -25,6 +25,7 @@ import android.content.res.Resources;
 import android.graphics.Point;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.PowerManager;
 import android.telecom.DisconnectCause;
 import android.telecom.PhoneAccount;
 import android.telecom.PhoneAccountHandle;
@@ -102,6 +103,8 @@ public class InCallPresenter implements CallList.Listener,
     private boolean mAccountSelectionCancelled = false;
     private InCallCameraManager mInCallCameraManager = null;
     private AnswerPresenter mAnswerPresenter = new AnswerPresenter();
+    private PowerManager mPowerManager;
+    private PowerManager.WakeLock mWakeLock = null;
 
     /**
      * Whether or not we are currently bound and waiting for Telecom to send us a new call.
@@ -232,6 +235,9 @@ public class InCallPresenter implements CallList.Listener,
 
         addIncomingCallListener(mAnswerPresenter);
         addInCallUiListener(mAnswerPresenter);
+        mPowerManager = (PowerManager) mContext.getSystemService(Context.POWER_SERVICE);
+        mWakeLock = mPowerManager.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK |
+                PowerManager.ACQUIRE_CAUSES_WAKEUP, "InCallPresenter");
 
         mAccelerometerListener = new AccelerometerListener(context);
 
@@ -1271,6 +1277,9 @@ public class InCallPresenter implements CallList.Listener,
 
             mAccelerometerListener = null;
 
+            mWakeLock = null;
+            mPowerManager = null;
+
             mAudioModeProvider = null;
 
             if (mStatusBarNotifier != null) {
@@ -1446,6 +1455,34 @@ public class InCallPresenter implements CallList.Listener,
             mInCallActivity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_NOSENSOR);
         } else {
             mInCallActivity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR);
+        }
+    }
+
+    /* returns TRUE if screen is turned ON else false */
+    private boolean isScreenInteractive() {
+        return mPowerManager.isInteractive();
+    }
+
+    public void wakeUpScreen() {
+        if (!isScreenInteractive()) {
+            acquireWakeLock();
+            releaseWakeLock();
+        }
+    }
+
+    private void acquireWakeLock() {
+        Log.v(this, "acquireWakeLock");
+
+        if (mWakeLock != null) {
+            mWakeLock.acquire();
+        }
+    }
+
+    private void releaseWakeLock() {
+        Log.v(this, "releaseWakeLock");
+
+        if (mWakeLock != null && mWakeLock.isHeld()) {
+            mWakeLock.release();
         }
     }
 
